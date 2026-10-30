@@ -23,6 +23,12 @@ make evals   # 跑评测用例
 
 生成出来的是独立项目，不要混进本仓库的提交里；要长期维护就单独建仓（骨架自带 `.gitignore`）。
 
+项目建到套件外面也行，脚本会按实际位置改好 `TOOLS` 与文档里的相对路径：
+
+```bash
+./scripts/new-agent.sh --out ../my-agents invoice-reconciler
+```
+
 ## 目录地图
 
 | 路径 | 内容 |
