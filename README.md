@@ -78,10 +78,13 @@ make evals   # 跑评测用例
 ## 配套工具
 
 ```bash
-./scripts/new-agent.sh <name>              # 从骨架新建项目
-python3 scripts/run-evals.py <project-dir> # 跑评测（含基线对比）
+./scripts/new-agent.sh [--out <目录>] <name>       # 从骨架新建项目
+python3 scripts/run-evals.py <project-dir>        # 跑评测（含基线对比）
+python3 scripts/run-evals.py <project-dir> --report  # 另存一份运行快照到 evals/runs/
 python3 scripts/check-structure.py <project-dir>  # 检查项目是否满足规范
 ```
+
+`--report` 是给「查回退」用的：快照里带每条用例的输入、stdout、stderr、耗时与失败原因，下次运行自动列出「哪几条由通过转失败」。终端一关输出就没了，快照不会。细节见 [docs/04 第 6 节](docs/04-评测与质量规范.md)。
 
 ## 自检口径
 

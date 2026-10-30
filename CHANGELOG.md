@@ -2,6 +2,25 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号用语义化版本。
 
+## v1.1.0 — 2026-10-31
+
+### 新增
+
+- `run-evals.py --report`：把一次评测落成快照 `evals/runs/<时间>.json`，含每条用例的输入、stdout、stderr、耗时、退出码与失败原因（单字段超长自动截断）；下次运行自动与上次对比，直接列出“哪几条由通过转失败”；带 `--tag` 的快照不与全量快照互相比。快照只留本地，基线仍由 `--update-baseline` 管。
+- 基线多记一个 `failed` 名单，打开 `baseline.json` 就能看到上一轮挂在哪几条。
+- `.github/workflows/ci.yml`：CI 跑套件自检，并从骨架生成一个临时项目，跑单测、评测、结构自检与快照，验证“拷走就能用”这件事没坏。
+- `check-structure.py` 新增中文直引号提醒：代码块与行内代码之外的正文里出现 ASCII 直引号时给出提醒，并顺手修掉 `docs/07` 里原有的两处。
+
+### 修正
+
+- `check-structure.py` 的套件自检漏了 `docs/07-数据与知识接入.md`、`templates/数据源说明.md`、`templates/data-catalog.json`，删掉这几份也照样“通过”；已补上。
+- `check-structure.py` 对项目不再只看文件在不在：`evals/config.json` 缺 `cmd` 直接阻断；`evals/runs/` 有快照却没被 `.gitignore` 忽略时给提醒。
+- 骨架 `.gitignore` 里的 `evals/report-*.json` 对应一条从未存在的约定，改为忽略 `evals/runs/`。
+- 骨架 `Makefile` 调用工具脚本时没加引号，套件或项目路径含空格（例如放在 `Nutstore Files` 下）时 `make evals` 直接失败；已加引号。
+- `new-agent.sh` 用 `pwd` 取路径，`/tmp` 这类符号链接目录下算出的相对路径会多一级，导致 `TOOLS` 指向不存在的文件；改用 `pwd -P`。
+- `new-agent.sh` 结尾提示改用绝对路径并加引号，路径含空格时可整行复制。
+- `docs/04-评测与质量规范.md` 增加第 6 节“运行快照”，原第 6、7 节顺延。
+
 ## v1.0.1 — 2026-10-31
 
 ### 修正

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  kit:
+    name: 规范自检
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 脚本语法
+        run: python3 -m py_compile scripts/run-evals.py scripts/check-structure.py
+      - name: 套件自检
+        run: python3 scripts/check-structure.py .
+
+  skeleton:
+    name: 骨架生成的项目能跑通
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 建一个临时项目
+        run: ./scripts/new-agent.sh --out "$RUNNER_TEMP/agents" ci-smoke
+      - name: 单测、评测、自检
+        working-directory: ${{ runner.temp }}/agents/ci-smoke
+        run: |
+          make test
+          make evals
+          make check
+      - name: 运行快照
+        working-directory: ${{ runner.temp }}/agents/ci-smoke
+        run: |
+          python3 "$GITHUB_WORKSPACE/scripts/run-evals.py" . --report
+          python3 - <<'PY'
+          import glob
+          import json
+
+          path = sorted(glob.glob("evals/runs/*.json"))[-1]
+          report = json.load(open(path, encoding="utf-8"))
+          assert report["total"] == 3, report["total"]
+          assert all({"stdout", "stderr", "input", "problems"} <= set(c) for c in report["cases"])
+          print("快照字段完整:", path)
+          PY

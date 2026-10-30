@@ -43,10 +43,13 @@ echo '{"text": "..."}' | python3 src/agent.py
 ## 评测
 
 ```bash
-make evals                                   # 全部
-make evals ARGS="--tag smoke"                # 子集
+make evals                                    # 全部
+make smoke                                    # 只跑 smoke 子集
+python3 ../scripts/run-evals.py . --report    # 留一份运行快照到 evals/runs/（不入库）
 python3 ../scripts/run-evals.py . --update-baseline   # 达标后更新基线
 ```
+
+快照里存了每条用例的输入、输出与失败原因；下次运行会自动列出哪几条由通过转失败。
 
 当前基线：<成功率 __%，更新于 __>
 

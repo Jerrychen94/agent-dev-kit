@@ -13,13 +13,13 @@ run:
 	@echo "2026年3月5日发票，金额 1,280.50 元，开票方：示例科技" | python3 src/agent.py
 
 evals:
-	python3 $(TOOLS)/run-evals.py .
+	python3 "$(TOOLS)/run-evals.py" .
 
 smoke:
-	python3 $(TOOLS)/run-evals.py . --tag smoke
+	python3 "$(TOOLS)/run-evals.py" . --tag smoke
 
 test:
 	python3 -m unittest discover -s tests -v
 
 check:
-	python3 $(TOOLS)/check-structure.py .
+	python3 "$(TOOLS)/check-structure.py" .

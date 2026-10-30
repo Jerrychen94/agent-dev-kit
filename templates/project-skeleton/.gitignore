@@ -12,8 +12,8 @@ __pycache__/
 .venv/
 venv/
 
-# 评测产物（基线与报告可入库，临时结果不入库）
-evals/report-*.json
+# 评测产物：基线入库；运行快照（--report）只留本地，含原始输入与 stdout
+evals/runs/
 evals/tmp/
 
 # 系统

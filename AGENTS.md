@@ -26,7 +26,7 @@ cd <name> && make run && make evals
 3. 失败必须显式：有 `error.code`、`message`、`hint`；禁止 `except: pass`。
 4. 提示词与代码分开存放；提示词或模型变更必须重跑评测并写 CHANGELOG。
 5. 密钥走环境变量，`.env` 不入库。
-6. 评测用例 ≥30 条、含负例、有基线；`make evals` 一条命令可跑。
+6. 评测用例 ≥30 条、含负例、有基线；`make evals` 一条命令可跑；查回退时加 `--report` 留快照。
 7. 提交前跑 `make test && make evals && make check`。
 8. 需要外部数据时，先建 `data/catalog.json` 清册与 `data/sources/<id>.md` 逐源说明；原始数据不入库，规则见 `docs/07-数据与知识接入.md`。
 
@@ -36,4 +36,4 @@ cd <name> && make run && make evals
 
 ## 中文排版
 
-中文内容使用弯引号（U+201C/U+201D、U+2018/U+2019），不使用 ASCII 直引号。`scripts/check-structure.py` 会校验配对。
+中文内容使用弯引号（U+201C/U+201D、U+2018/U+2019），不使用 ASCII 直引号。`scripts/check-structure.py` 校验配对，并在中文正文里用了直引号时给提醒（代码块与行内代码不算）。

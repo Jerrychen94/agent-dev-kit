@@ -2,7 +2,11 @@
 """通用评测执行器。
 
 用法：
-    python3 scripts/run-evals.py <项目目录> [--update-baseline] [--tag smoke] [--verbose]
+    python3 scripts/run-evals.py <项目目录> [--update-baseline] [--tag smoke] [--verbose] [--report]
+
+    --report 把本次运行存成快照（evals/runs/<时间>.json），含每条用例的输入、
+    stdout、stderr、耗时与失败原因；有上一次快照时会自动列出「哪几条由通过转失败」。
+    快照只留本地，不进版本库；基线仍然是 evals/baseline.json。
 
 约定（被测程序只需满足这一条）：
     stdin  <- 用例的 input（字符串原样，对象则转 JSON）
@@ -24,6 +28,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 GREEN, RED, YELLOW, DIM, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
+
+# 快照里单字段最多保留多少字符；超长输出截断并标记，避免一次运行就写出几百 MB
+MAX_FIELD = 4000
+
+
+def clip(text: str | None, limit: int = MAX_FIELD) -> str:
+    text = text or ""
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"\n…（已截断，原长 {len(text)} 字符）"
 
 
 def load_cases(cases_dir: Path, tag: str | None) -> list[dict]:
@@ -145,16 +159,139 @@ def run_case(case: dict, cmd: list[str], cwd: Path, timeout: float) -> dict:
             encoding="utf-8",
         )
     except subprocess.TimeoutExpired:
-        return {"case": case, "passed": False, "problems": [f"超时 > {timeout}s"], "ms": timeout * 1000}
+        return {
+            "case": case,
+            "passed": False,
+            "problems": [f"超时 > {timeout}s"],
+            "ms": timeout * 1000,
+            "input": payload,
+            "stdout": "",
+            "stderr": "",
+            "exit_code": None,
+        }
     except FileNotFoundError:
-        return {"case": case, "passed": False, "problems": [f"命令不存在: {argv[0]}"], "ms": 0}
+        return {
+            "case": case,
+            "passed": False,
+            "problems": [f"命令不存在: {argv[0]}"],
+            "ms": 0,
+            "input": payload,
+            "stdout": "",
+            "stderr": "",
+            "exit_code": None,
+        }
 
     elapsed_ms = (time.perf_counter() - started) * 1000
     problems = check(case, proc.stdout, proc.returncode)
     if proc.returncode != 0 and case.get("expect", {}).get("exit_code") is None:
         tail = (proc.stderr or "").strip().splitlines()[-1:] or [""]
         problems.append(f"非零退出码 {proc.returncode}: {tail[0][:160]}")
-    return {"case": case, "passed": not problems, "problems": problems, "ms": elapsed_ms, "stdout": proc.stdout}
+    return {
+        "case": case,
+        "passed": not problems,
+        "problems": problems,
+        "ms": elapsed_ms,
+        "input": payload,
+        "stdout": proc.stdout,
+        "stderr": proc.stderr,
+        "exit_code": proc.returncode,
+    }
+
+
+def latest_report(runs_dir: Path) -> tuple[Path | None, dict | None]:
+    """取最近一次快照（按修改时间，避免同一秒内的第二份快照因文件名排序被当成旧的）。"""
+    if not runs_dir.exists():
+        return None, None
+    paths = [p for p in runs_dir.glob("*.json") if p.is_file()]
+    paths.sort(key=lambda p: (p.stat().st_mtime, p.name), reverse=True)
+    for path in paths:
+        try:
+            return path, json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+    return None, None
+
+
+def report_states(report: dict) -> dict[str, bool]:
+    return {item.get("id", "?"): bool(item.get("passed")) for item in report.get("cases", [])}
+
+
+def diff_reports(previous: dict, current: dict) -> None:
+    """打印「由过转挂 / 由挂转过」，这是最需要一眼看到的信息。"""
+    before = report_states(previous)
+    after = report_states(current)
+    broke = [cid for cid, ok in after.items() if before.get(cid) is True and not ok]
+    fixed = [cid for cid, ok in after.items() if before.get(cid) is False and ok]
+    added = [cid for cid in after if cid not in before]
+    removed = [cid for cid in before if cid not in after]
+    if not (broke or fixed or added or removed):
+        print("与上次快照相比：逐条状态一致")
+        return
+    summary = []
+    if broke:
+        summary.append(f"{RED}{len(broke)} 条转失败{RESET}")
+    if fixed:
+        summary.append(f"{GREEN}{len(fixed)} 条转通过{RESET}")
+    if added:
+        summary.append(f"{len(added)} 条新增")
+    if removed:
+        summary.append(f"{len(removed)} 条移除")
+    print("与上次快照相比：" + "，".join(summary))
+    for cid in broke:
+        print(f"  {RED}· 转失败 {cid}{RESET}")
+    for cid in fixed:
+        print(f"  {GREEN}· 转通过 {cid}{RESET}")
+
+
+def write_report(
+    runs_dir: Path,
+    project: Path,
+    cmd: list[str],
+    results: list[dict],
+    rate: float,
+    duration_ms: float,
+    started_at: str,
+    tag: str | None = None,
+) -> Path:
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    path = runs_dir / f"{stamp}.json"
+    serial = 2
+    while path.exists():
+        path = runs_dir / f"{stamp}-{serial}.json"
+        serial += 1
+
+    cases = []
+    for result in results:
+        case = result["case"]
+        cases.append(
+            {
+                "id": case.get("id"),
+                "tags": case.get("tags", []),
+                "passed": result["passed"],
+                "ms": round(result["ms"], 1),
+                "problems": result["problems"],
+                "input": clip(result.get("input")),
+                "stdout": clip(result.get("stdout")),
+                "stderr": clip(result.get("stderr")),
+                "exit_code": result.get("exit_code"),
+            }
+        )
+
+    payload = {
+        "started_at": started_at,
+        "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "project": str(project),
+        "cmd": cmd,
+        "passed": sum(1 for r in results if r["passed"]),
+        "total": len(results),
+        "rate": rate,
+        "duration_ms": round(duration_ms, 1),
+        "tag": tag,
+        "cases": cases,
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
 
 
 def main() -> int:
@@ -163,7 +300,11 @@ def main() -> int:
     parser.add_argument("--update-baseline", action="store_true", help="全部通过时写入基线")
     parser.add_argument("--tag", help="只跑含该标签的用例")
     parser.add_argument("--verbose", "-v", action="store_true", help="打印每个用例的输出")
+    parser.add_argument("--report", action="store_true", help="把本次运行存成快照到 evals/runs/")
     args = parser.parse_args()
+
+    started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    clock = time.perf_counter()
 
     project = Path(args.project).expanduser().resolve()
     config_path = project / "evals" / "config.json"
@@ -180,6 +321,8 @@ def main() -> int:
 
     cmd = config["cmd"]
     timeout = float(config.get("timeout_sec", 60))
+    runs_dir = project / "evals" / "runs"
+    prev_path, prev_report = latest_report(runs_dir)
     print(f"跑 {len(cases)} 条用例  cmd={' '.join(cmd)}  cwd={project}")
     print("-" * 64)
 
@@ -217,6 +360,7 @@ def main() -> int:
 
     if args.update_baseline:
         if passed == len(results):
+            failed_ids = [r["case"]["id"] for r in results if not r["passed"]]
             baseline_path.write_text(
                 json.dumps(
                     {
@@ -224,6 +368,7 @@ def main() -> int:
                         "passed": passed,
                         "total": len(results),
                         "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                        "failed": failed_ids,
                         "cases": {r["case"]["id"]: r["passed"] for r in results},
                     },
                     ensure_ascii=False,
@@ -235,6 +380,28 @@ def main() -> int:
             print(f"{GREEN}基线已更新: {baseline_path}{RESET}")
         else:
             print(f"{YELLOW}存在失败用例，不更新基线{RESET}")
+
+    if prev_report is not None:
+        if prev_report.get("tag") != args.tag:
+            print(f"{DIM}上次快照: {prev_path.name}（--tag 不同，跳过对比）{RESET}")
+        else:
+            current = {"cases": [{"id": r["case"].get("id"), "passed": r["passed"]} for r in results]}
+            print(f"{DIM}上次快照: {prev_path.name}{RESET}")
+            diff_reports(prev_report, current)
+
+    if args.report:
+        report_path = write_report(
+            runs_dir,
+            project,
+            cmd,
+            results,
+            rate,
+            (time.perf_counter() - clock) * 1000,
+            started_at,
+            args.tag,
+        )
+        rel = report_path.relative_to(project)
+        print(f"快照已写入: {rel}")
 
     if regressed:
         return 2

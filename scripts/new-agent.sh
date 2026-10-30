@@ -3,7 +3,7 @@
 # 用法: ./scripts/new-agent.sh [--out <目录>] <kebab-case-name>
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 SKELETON="$ROOT/templates/project-skeleton"
 OUT="$ROOT"
 NAME=""
@@ -37,7 +37,7 @@ if [[ ! "$NAME" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
 fi
 
 mkdir -p "$OUT"
-OUT="$(cd "$OUT" && pwd)"
+OUT="$(cd "$OUT" && pwd -P)"
 TARGET="$OUT/$NAME"
 if [[ -e "$TARGET" ]]; then
   echo "目标已存在: $TARGET" >&2
@@ -84,12 +84,14 @@ cat <<EOF
 
 已创建: $TARGET
 
-接下来（按顺序）：
-  1. 填 $REL/templates/需求卡.md → 先想清楚给谁解决什么问题
+接下来（按顺序，路径含空格时请连着引号一起复制）：
+  1. 填 "$ROOT/templates/需求卡.md" → 先想清楚给谁解决什么问题
   2. 改 docs/design.md 与 docs/contract.md（骨架里是发票抽取示例，按需替换）
   3. 替换 src/agent.py 为真实实现，保持 stdin/stdout 契约
-  4. cd $TARGET && make run && make evals
-  5. 评测达标后: python3 $REL/scripts/run-evals.py . --update-baseline
+  4. cd "$TARGET" && make run && make evals
+  5. 评测达标后: python3 "$ROOT/scripts/run-evals.py" . --update-baseline
+  6. 想留下证据就再加 --report，快照写进 evals/runs/（已被 .gitignore 忽略）
 
+（本项目的上级规范目录: ${REL}）
 注意：骨架自带 3 条 smoke 用例与规则占位实现，仅用于验证链路是否通。
 EOF

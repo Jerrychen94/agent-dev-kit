@@ -34,6 +34,9 @@ SECRET_PATTERNS = [
 
 SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "logs", "outputs"}
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+FENCE_RE = re.compile(r"```.*?```", re.S)
+INLINE_CODE_RE = re.compile(r"`[^`]*`")
+CJK_RE = re.compile(r"[\u4e00-\u9fff]")
 
 problems: list[str] = []
 warnings: list[str] = []
@@ -55,23 +58,38 @@ def check_suite(root: Path) -> None:
     for name in ["README.md", "AGENTS.md", "scripts/new-agent.sh", "scripts/run-evals.py"]:
         if not (root / name).exists():
             fail(f"缺少 {name}")
-    for name in ["01-流程规范", "02-分层模型与项目结构", "03-形态适配指南", "04-评测与质量规范", "05-发布运维与安全", "06-反模式与速查"]:
+    for name in ["01-流程规范", "02-分层模型与项目结构", "03-形态适配指南", "04-评测与质量规范", "05-发布运维与安全", "06-反模式与速查", "07-数据与知识接入"]:
         if not (root / "docs" / f"{name}.md").exists():
             fail(f"缺少 docs/{name}.md")
-    for name in ["需求卡", "设计文档", "契约", "发布说明", "决策记录ADR"]:
+    for name in ["需求卡", "设计文档", "契约", "发布说明", "决策记录ADR", "数据源说明"]:
         if not (root / "templates" / f"{name}.md").exists():
             fail(f"缺少 templates/{name}.md")
+    if not (root / "templates" / "data-catalog.json").exists():
+        fail("缺少 templates/data-catalog.json")
     for name in ["01-立项清单", "02-开发清单", "03-上线清单", "04-复盘清单"]:
         if not (root / "checklists" / f"{name}.md").exists():
             fail(f"缺少 checklists/{name}.md")
     if not (root / "templates" / "project-skeleton" / "Makefile").exists():
         fail("缺少 templates/project-skeleton/Makefile")
+    if not (root / ".github" / "workflows" / "ci.yml").exists():
+        warn("没有 .github/workflows/ci.yml，规范自检没有在 CI 里跑")
 
 
 def check_project(root: Path) -> None:
     for rel, desc in REQUIRED.items():
         if not (root / rel).exists():
             fail(f"缺少 {rel}（{desc}）")
+
+    config_path = root / "evals" / "config.json"
+    if config_path.exists():
+        try:
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            fail(f"evals/config.json 不是合法 JSON: {exc}")
+            config = {}
+        cmd = config.get("cmd")
+        if not isinstance(cmd, list) or not cmd:
+            fail("evals/config.json 缺少 cmd（被测入口命令，形如 [\"python3\", \"src/agent.py\"]）")
 
     contract = root / "docs" / "contract.md"
     if contract.exists():
@@ -121,6 +139,13 @@ def check_project(root: Path) -> None:
     if not (root / "tests").exists():
         warn("没有 tests/ 目录")
 
+    runs_dir = root / "evals" / "runs"
+    if runs_dir.exists() and any(runs_dir.glob("*.json")):
+        gitignore = root / ".gitignore"
+        ignored = gitignore.exists() and "evals/runs" in gitignore.read_text(encoding="utf-8")
+        if not ignored:
+            warn("evals/runs/ 有运行快照但未被 .gitignore 忽略，快照含原始输入与输出")
+
 
 def walk_files(root: Path):
     for path in root.rglob("*"):
@@ -153,6 +178,19 @@ def check_quotes(root: Path) -> None:
         for left, right, label in pairs:
             if text.count(left) != text.count(right):
                 fail(f"{path.relative_to(root)} {label}不配对: {text.count(left)} 左 / {text.count(right)} 右")
+
+        # 中文正文里的直引号：代码块与行内代码是合法用法，剥掉后再看
+        prose = INLINE_CODE_RE.sub("", FENCE_RE.sub("", text))
+        offenders = [
+            line.strip()
+            for line in prose.splitlines()
+            if CJK_RE.search(line) and ('"' in line or "'" in line)
+        ]
+        if offenders:
+            warn(
+                f"{path.relative_to(root)} 有 {len(offenders)} 行中文正文用了 ASCII 直引号，"
+                f"例如: {offenders[0][:50]}"
+            )
 
 
 def check_links(root: Path) -> None:
