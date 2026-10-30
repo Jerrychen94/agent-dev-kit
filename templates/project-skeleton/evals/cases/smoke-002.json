@@ -1,0 +1,10 @@
+{
+  "id": "smoke-002",
+  "tags": ["smoke", "negative"],
+  "input": "2026年3月1日发票，开票方：示例科技",
+  "expect": {
+    "json_path": {"path": "error.code", "equals": "MISSING_AMOUNT"},
+    "exit_code": 1
+  },
+  "notes": "缺金额必须显式失败，不能猜一个数返回"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "smoke-003",
+  "tags": ["smoke", "negative", "edge"],
+  "input": "",
+  "expect": {
+    "json_path": {"path": "error.code", "equals": "EMPTY_INPUT"},
+    "exit_code": 1
+  },
+  "notes": "空输入：必须给出可读错误，不能崩栈"
+}

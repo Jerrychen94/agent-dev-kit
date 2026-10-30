@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "updated": "2026-01-01",
+  "project": "<agent-name>",
+  "layout": {
+    "raw": "data/raw",
+    "interim": "data/interim",
+    "derived": "data/derived"
+  },
+  "sources": [
+    {
+      "id": "example-files",
+      "name": "本地文件示例源",
+      "kind": "public_file",
+      "status": "needs_download",
+      "granularity": "记录-日",
+      "coverage": "说明覆盖范围与时间跨度",
+      "topics": ["示例主题"],
+      "keywords": ["关键词一", "关键词二"],
+      "access": {
+        "type": "local_files",
+        "path": "data/raw/example-files",
+        "format": "csv",
+        "pattern": "*.csv",
+        "env": []
+      },
+      "update": "年度",
+      "license": "说明授权与再分发限制",
+      "doc": "data/sources/example-files.md",
+      "notes": "已知坑写在这里"
+    },
+    {
+      "id": "example-api",
+      "name": "公开接口示例源",
+      "kind": "public_api",
+      "status": "needs_key",
+      "granularity": "实体-年",
+      "coverage": "说明覆盖范围与时间跨度",
+      "topics": ["示例主题"],
+      "keywords": ["关键词三"],
+      "access": {
+        "type": "http_api",
+        "url": "https://api.example.com/v1",
+        "format": "json",
+        "env": ["EXAMPLE_API_KEY"]
+      },
+      "update": "日频",
+      "license": "说明授权与再分发限制",
+      "doc": "data/sources/example-api.md",
+      "notes": "只写变量名，不写密钥值"
+    }
+  ]
+}

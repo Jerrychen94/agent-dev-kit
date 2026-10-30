@@ -1,0 +1,22 @@
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# 运行产物
+logs/
+*.log
+outputs/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 评测产物（基线与报告可入库，临时结果不入库）
+evals/report-*.json
+evals/tmp/
+
+# 系统
+.DS_Store
+.idea/
+.vscode/

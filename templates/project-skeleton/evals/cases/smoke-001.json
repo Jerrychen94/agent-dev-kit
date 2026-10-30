@@ -1,0 +1,36 @@
+{
+  "id": "smoke-001",
+  "tags": [
+    "smoke",
+    "happy"
+  ],
+  "input": "2026年3月5日发票，金额 1,280.50 元，开票方：示例科技",
+  "expect": {
+    "contains": [
+      "示例科技"
+    ],
+    "not_contains": [
+      "Traceback"
+    ],
+    "json_path": [
+      {
+        "path": "ok",
+        "equals": true
+      },
+      {
+        "path": "result.amount",
+        "equals": 1280.5
+      },
+      {
+        "path": "result.date",
+        "equals": "2026-03-05"
+      },
+      {
+        "path": "result.vendor",
+        "equals": "示例科技"
+      }
+    ],
+    "exit_code": 0
+  },
+  "notes": "千分位逗号 + 两位小数，验证金额不被截断"
+}

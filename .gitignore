@@ -1,0 +1,19 @@
+# 运行时产物
+tmp/
+*.log
+run.jsonl
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 环境与密钥
+.env
+.env.*
+
+# 系统与编辑器
+.DS_Store
+.idea/
+.vscode/

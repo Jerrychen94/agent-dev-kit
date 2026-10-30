@@ -1,0 +1,7 @@
+{
+  "cmd": ["python3", "src/agent.py"],
+  "timeout_sec": 30,
+  "cases_dir": "cases",
+  "baseline": "baseline.json",
+  "tolerance": 0.05
+}
